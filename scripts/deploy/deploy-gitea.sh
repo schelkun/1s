@@ -116,7 +116,7 @@ main() {
   retry 4 gitea_compose pull -q --policy missing
   gitea_compose up -d --remove-orphans db
   wait_healthy "${DB_C}" 180
-  sync_db_password
+  retry 3 sync_db_password
   gitea_compose up -d --remove-orphans
   wait_healthy "${GITEA_C}" 300
   ensure_admin

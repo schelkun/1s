@@ -23,7 +23,10 @@ services:
     pids_limit: 1024
     security_opt: ["no-new-privileges:true"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -q -U gitea -d gitea"]
+      # TCP on purpose: on first start the image runs a temporary init server
+      # on the Unix socket only, then restarts. A socket check reports that
+      # temporary server as healthy and the deploy races its shutdown.
+      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -U gitea -d gitea"]
       interval: 10s
       timeout: 5s
       retries: 12
