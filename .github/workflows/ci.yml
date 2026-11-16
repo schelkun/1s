@@ -15,12 +15,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
+      # The suites run as root in the same Alpine toolbox used locally
+      # (docs/testing.md). Several tests exercise root-only commands
+      # (ip-access, config import, the gateway via runuser), which the
+      # unprivileged runner user cannot run.
+      - name: Build test toolbox
+        run: docker build -t 1s-test-toolbox:local tests/docker
       - name: ShellCheck
-        run: tests/shellcheck.sh
+        run: docker run --rm -v "$PWD":/src:ro -w /src 1s-test-toolbox:local bash tests/shellcheck.sh
       - name: Unit tests
-        run: tests/unit.sh
+        run: docker run --rm -v "$PWD":/src:ro -w /src 1s-test-toolbox:local bash tests/unit.sh
       - name: Compose and Nginx validation
-        run: tests/validate-configs.sh
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+          -v "$PWD:$PWD" -w "$PWD" 1s-test-toolbox:local bash tests/validate-configs.sh
