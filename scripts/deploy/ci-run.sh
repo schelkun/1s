@@ -10,7 +10,7 @@ target="${1:?target}"; action="${2:?action}"; flag="${3:-}"
 remote() { ssh -T 1s-server "$@"; }
 
 if ! remote ping >/dev/null; then
-  echo "::error::Cannot reach the deployment gateway. Enable access first: scripts/macos/deploy-access.sh enable" >&2
+  echo "::error::Cannot reach the deployment gateway (see the ssh error above). Check that access is enabled (scripts/macos/deploy-access.sh status) and that the 'Deploy key fingerprint' printed earlier matches its 'key:' line." >&2
   exit 1
 fi
 

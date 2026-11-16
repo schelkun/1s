@@ -67,6 +67,13 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${DEPLOY_SSH_KEY}" > ~/.ssh/1s_deploy
           printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" > ~/.ssh/1s_known_hosts
+          # Catch a mis-pasted key early. The fingerprint is public: compare it
+          # with `scripts/macos/deploy-access.sh status` (the "key:" line).
+          if ! fp="$(ssh-keygen -l -f ~/.ssh/1s_deploy 2>/dev/null | awk '{print $2}')" || [ -z "${fp}" ]; then
+            echo "::error::DEPLOY_SSH_KEY is not a valid private key. Paste the whole file ~/.ssh/1s_deploy_ed25519, including the BEGIN/END lines."
+            exit 1
+          fi
+          echo "Deploy key fingerprint: ${fp}"
           cat > ~/.ssh/config <<EOF
           Host 1s-server
             HostName ${DEPLOY_HOST}

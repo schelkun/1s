@@ -4,7 +4,7 @@
 
 | Symptom | Cause / fix |
 |---|---|
-| `Cannot reach the deployment gateway. Is deployment access enabled?` | Run `scripts/macos/deploy-access.sh enable` (or use `deploy.sh`). Check `deploy-access.sh status`. |
+| `Cannot reach the deployment gateway` | Run `scripts/macos/deploy-access.sh enable` (or use `deploy.sh`) and check `deploy-access.sh status`. If access is enabled, compare the "Deploy key fingerprint" in the workflow log with the `key:` line of `status`. If they differ, paste `~/.ssh/1s_deploy_ed25519` into `DEPLOY_SSH_KEY` again (`pbcopy < ~/.ssh/1s_deploy_ed25519`). |
 | `Host key verification failed` in Actions | The server was reinstalled or `DEPLOY_KNOWN_HOSTS` is stale: run `generate-deploy-key.sh` and paste the secrets again. |
 | `Permission denied (publickey)` | Key mismatch: `generate-deploy-key.sh --rotate`. Or sshd `AllowUsers`/`AllowGroups` excludes `deploy` (bootstrap warns about this). |
 | `1s-gateway: rejected: ...` | The workflow sent an unknown command; use the provided workflow and scripts. |
