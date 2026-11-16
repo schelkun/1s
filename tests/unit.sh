@@ -207,7 +207,7 @@ fi
 echo "== deployment bundle (code only)"
 if command -v git >/dev/null; then
   R="${TMP}/repo"; mkdir -p "${R}"
-  tar -C "${REPO}" --exclude=.git --exclude=.env --exclude='.tmp-*' -cf - . | tar -C "${R}" -xf -
+  tar -C "${REPO}" --exclude=.git --exclude=.env --exclude='.tmp-*' -cf - . | tar -C "${R}" --no-same-owner -xf -
   git -C "${R}" init -q && git -C "${R}" add -A && git -C "${R}" -c user.name=t -c user.email=t@example.com commit -qm t
   sha="$(git -C "${R}" rev-parse HEAD)"
   mkdir -p "${TMP}/b"

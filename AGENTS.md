@@ -47,6 +47,8 @@ in GitHub or the repo.
   `2001:db8::/32`. Real values belong only in the gitignored `.env` and on the
   server.
 - Never commit `.env`, keys, backups or anything under `.local/`.
+- Don't commit or push on your own. Ask the user first: some people commit
+  manually, others are fine with automatic commits and pushes.
 - Server scripts target **Bash >= 4.4** with `set -euo pipefail`. Scripts in
   `scripts/macos/` must stay **Bash 3.2-compatible** (stock macOS, no Homebrew).
 - Treat dotenv files as data: parse them with `env_load`/`env_get` from
