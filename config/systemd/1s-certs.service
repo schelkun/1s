@@ -1,0 +1,9 @@
+[Unit]
+Description=1s certificate renewal (acme.sh) and expiry check
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/1s/tools/scripts/certificates/certs.sh renew
+ExecStartPost=/opt/1s/tools/scripts/certificates/certs.sh check --quiet

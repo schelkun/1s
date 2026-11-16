@@ -1,0 +1,7 @@
+# Configuration values come from the environment/dotenv files at runtime.
+disable=SC2153
+# "a && ok || bad" is used deliberately for reporting where ok/bad cannot fail.
+disable=SC2015
+# Literal $ in single quotes is intended (nginx variables, remote commands).
+disable=SC2016,SC2029
+external-sources=true

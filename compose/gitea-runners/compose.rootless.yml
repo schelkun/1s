@@ -1,0 +1,21 @@
+# Default isolation: rootless Docker-in-Docker WITHOUT --privileged.
+#
+# The runner and its private dockerd run as an unprivileged user inside a user
+# namespace. No capabilities are added. What is relaxed, and why:
+#   * /dev/net/tun            slirp4netns networking for the rootless daemon
+#   * seccomp=unconfined      rootlesskit needs unshare/mount syscalls
+#   * systempaths=unconfined  nested containers must mount /proc
+#   * apparmor=<profile>      Ubuntu 24.04 restricts unprivileged user
+#                             namespaces; the 1s-rootless-dind profile
+#                             (config/apparmor) allows them for this container.
+# Jobs never see the host Docker daemon.
+services:
+  runner:
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - seccomp=unconfined
+      - systempaths=unconfined
+      - apparmor=${GITEA_RUNNER_APPARMOR_PROFILE:-1s-rootless-dind}
+    volumes:
+      - docker:/home/rootless/.local/share/docker

@@ -1,0 +1,13 @@
+[Unit]
+Description=1s firewall rules (Git-over-SSH allowlist, container egress filters)
+After=docker.service network-online.target
+Wants=network-online.target
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/1s/tools/scripts/server/firewall.sh apply
+
+[Install]
+WantedBy=multi-user.target docker.service

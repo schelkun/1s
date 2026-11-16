@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# 1s server administration CLI (installed as /usr/local/sbin/1s).
+#
+#   1s status                               deployed components, releases, containers
+#   1s config import|show|secret|rotate     settings and secrets (see: 1s config)
+#   1s health [shared|gitea|openhands|all]  run health checks
+#   1s ip-access <args>                     manage allowlists (see: 1s ip-access help)
+#   1s certs <args>                         certificates (issue|renew|check|list)
+#   1s backup <args>                        backups (create|list|verify|restore|prune)
+#   1s firewall apply|status|remove         host firewall rules managed by 1s
+#   1s deploy-access <args>                 temporary deployment SSH access
+#   1s runners status|reconcile|prune       Gitea runner pool
+#   1s openhands key <user>                 print a user's Agent Canvas API key
+#   1s openhands purge-user <user> --yes    delete a removed user's data
+#   1s nginx apply|test|logs                re-render/validate Nginx, tail logs
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+ROOT="$(cd "${SELF_DIR}/../.." && pwd)"
+
+usage() { sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+
+cmd_status() {
+  # shellcheck source=scripts/lib/deploy.sh
+  source "${ROOT}/scripts/lib/deploy.sh"
+  config_load_server
+  local c
+  printf '%-10s %-9s %-42s %s\n' COMPONENT DEPLOYED RELEASE SINCE
+  for c in shared gitea openhands; do
+    if component_deployed "${c}"; then
+      printf '%-10s %-9s %-42s %s\n' "${c}" yes "$(current_release "${c}")" "$(cat "${STATE_DIR}/${c}.deployed")"
+    else
+      printf '%-10s %-9s\n' "${c}" no
+    fi
+  done
+  echo
+  docker ps -a --filter "name=^${ONES_PREFIX}-" --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
+}
+
+cmd_openhands() {
+  # shellcheck source=scripts/lib/openhands.sh
+  source "${ROOT}/scripts/lib/openhands.sh"
+  [[ "${EUID}" -eq 0 ]] || die "Run with sudo."
+  config_load_server
+  case "${1:-}" in
+    key)
+      [[ -n "${2:-}" ]] || die "usage: 1s openhands key <user>"
+      oh_users | awk '{print $1}' | grep -qxF -- "$2" || die "Unknown user: $2"
+      oh_user_api_key "$2" ;;
+    purge-user)
+      local u="${2:-}"
+      [[ -n "${u}" && "${3:-}" == --yes ]] || die "usage: 1s openhands purge-user <user> --yes"
+      [[ "${u}" =~ ^[a-z][a-z0-9-]{0,30}$ ]] || die "Invalid user name"
+      if oh_users | awk '{print $1}' | grep -qxF -- "${u}"; then die "${u} is still in OPENHANDS_USERS; remove it and deploy first."; fi
+      docker rm -f "${ONES_PREFIX}-openhands-${u}" >/dev/null 2>&1 || true
+      docker volume rm "${ONES_PREFIX}-openhands-${u}-data" "${ONES_PREFIX}-openhands-${u}-projects" >/dev/null 2>&1 || true
+      docker network rm "${ONES_PREFIX}-openhands-${u}" >/dev/null 2>&1 || true
+      rm -rf -- "${ONES_ETC}/runtime/openhands/${u:?}"
+      if [[ -f "${OH_USERS_MAP}" ]]; then sed -i "/^${u} /d" "${OH_USERS_MAP}"; fi
+      log "OpenHands user ${u} purged (backups are kept)." ;;
+    *) usage ;;
+  esac
+}
+
+cmd_nginx() {
+  # shellcheck source=scripts/lib/nginx.sh
+  source "${ROOT}/scripts/lib/nginx.sh"
+  config_load_server
+  case "${1:-}" in
+    apply) [[ "${EUID}" -eq 0 ]] || die "Run with sudo."; nginx_apply ;;
+    test)  docker exec "${NGINX_CONTAINER}" nginx -t ;;
+    logs)  docker logs --tail "${2:-100}" -f "${NGINX_CONTAINER}" ;;
+    *) usage ;;
+  esac
+}
+
+main() {
+  local cmd="${1:-}"; shift || true
+  case "${cmd}" in
+    status)        cmd_status ;;
+    health)        exec "${ROOT}/scripts/health/health.sh" "$@" ;;
+    config)        exec "${ROOT}/scripts/server/config.sh" "$@" ;;
+    ip-access)     exec "${ROOT}/scripts/access/ip-access.sh" "$@" ;;
+    certs)         exec "${ROOT}/scripts/certificates/certs.sh" "$@" ;;
+    backup)        exec "${ROOT}/scripts/backup/backup.sh" "$@" ;;
+    firewall)      exec "${ROOT}/scripts/server/firewall.sh" "$@" ;;
+    deploy-access) exec "${ROOT}/scripts/server/deploy-access.sh" "$@" ;;
+    runners)       exec "${ROOT}/scripts/deploy/runners.sh" "$@" ;;
+    openhands)     cmd_openhands "$@" ;;
+    nginx)         cmd_nginx "$@" ;;
+    -h|--help|help|"") usage 0 ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"

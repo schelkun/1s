@@ -1,0 +1,15 @@
+# AppArmor profile for 1s rootless Docker-in-Docker runner containers.
+#
+# Ubuntu 24.04 sets kernel.apparmor_restrict_unprivileged_userns=1, which stops
+# unconfined processes from gaining capabilities inside new user namespaces.
+# Rootless dockerd (rootlesskit) needs exactly that. This profile is otherwise
+# unconfined and only grants "userns". Installed by scripts/server/bootstrap.sh
+# on AppArmor >= 4 hosts and referenced by GITEA_RUNNER_APPARMOR_PROFILE.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile 1s-rootless-dind flags=(unconfined) {
+  userns,
+
+  include if exists <local/1s-rootless-dind>
+}

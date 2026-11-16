@@ -1,0 +1,9 @@
+[Unit]
+Description=1s cleanup of Gitea runner private Docker daemons
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/opt/1s/tools/scripts/deploy/runners.sh prune

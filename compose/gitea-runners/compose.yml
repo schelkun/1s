@@ -1,0 +1,46 @@
+# One Gitea Actions runner. Each runner is its own compose project
+# (${ONES_PREFIX}-gitea-runner-<N>) with its own network, volumes and private
+# Docker daemon, so runners can be added, updated and removed independently.
+#
+# Rendered by scripts/deploy/runners.sh; combine with exactly one isolation
+# overlay: compose.rootless.yml (default) or compose.privileged.yml.
+name: ${ONES_PREFIX:-1s}-gitea-runner-${RUNNER_INDEX:?}
+
+services:
+  runner:
+    image: ${GITEA_RUNNER_IMAGE:?}
+    container_name: ${ONES_PREFIX:-1s}-gitea-runner-${RUNNER_INDEX:?}
+    hostname: ${RUNNER_NAME:?}
+    restart: unless-stopped
+    environment:
+      GITEA_INSTANCE_URL: https://${GITEA_DOMAIN:?}
+      GITEA_RUNNER_NAME: ${RUNNER_NAME:?}
+      GITEA_RUNNER_LABELS: ${GITEA_RUNNER_LABELS:?}
+      GITEA_RUNNER_REGISTRATION_TOKEN_FILE: /run/1s/registration-token
+      CONFIG_FILE: /etc/1s-runner/config.yaml
+    volumes:
+      - data:/data
+      - ${RUNNER_RUNTIME_DIR:?}/config.yaml:/etc/1s-runner/config.yaml:ro
+      - ${RUNNER_RUNTIME_DIR:?}/registration-token:/run/1s/registration-token:ro
+      - ${RUNNER_RUNTIME_DIR:?}/ca.crt:/etc/1s-runner/ca.crt:ro
+    networks: [runner]
+    cpus: ${GITEA_RUNNER_CPUS:-2}
+    mem_limit: ${GITEA_RUNNER_MEMORY:-4g}
+    pids_limit: ${GITEA_RUNNER_PIDS_LIMIT:-4096}
+    stop_grace_period: ${GITEA_RUNNER_SHUTDOWN_TIMEOUT:-30m}
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "5"}
+
+networks:
+  runner:
+    name: ${ONES_PREFIX:-1s}-gitea-runner-${RUNNER_INDEX:?}
+    ipam:
+      config:
+        - subnet: ${RUNNER_SUBNET:?}
+
+volumes:
+  data:
+    name: ${ONES_PREFIX:-1s}-gitea-runner-${RUNNER_INDEX:?}-data
+  docker:
+    name: ${ONES_PREFIX:-1s}-gitea-runner-${RUNNER_INDEX:?}-docker

@@ -1,0 +1,7 @@
+# OPENHANDS_AGENT_SUDO=true: the agent may use sudo (root inside its own
+# container, e.g. for apt-get). Still unprivileged from the host's point of
+# view (default seccomp/AppArmor, no host mounts, no Docker socket), but a
+# weaker boundary than compose.hardened.yml.
+services:
+  canvas:
+    cap_drop: [NET_RAW, MKNOD, AUDIT_WRITE, SYS_CHROOT]

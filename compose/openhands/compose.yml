@@ -1,0 +1,57 @@
+# One isolated OpenHands Agent Canvas instance per user.
+#
+# Every user from OPENHANDS_USERS is a separate compose project
+# (${ONES_PREFIX}-openhands-<user>) with its own network, volumes, API key,
+# encryption key and resource limits. Nginx publishes it on
+# https://OPENHANDS_DOMAIN:<port>; the container only listens on 127.0.0.1.
+#
+# Combine with compose.hardened.yml (default) or compose.sudo.yml.
+name: ${ONES_PREFIX:-1s}-openhands-${OH_USER:?}
+
+services:
+  canvas:
+    image: ${OPENHANDS_IMAGE:?}
+    container_name: ${ONES_PREFIX:-1s}-openhands-${OH_USER:?}
+    hostname: openhands-${OH_USER:?}
+    restart: unless-stopped
+    # OH_SESSION_API_KEYS_0 and OH_SECRET_KEY. NOTE: upstream documents
+    # LOCAL_BACKEND_API_KEY, but in agent-canvas 1.33.0 that variable alone
+    # leaves the Agent Server API unauthenticated. We set the session key
+    # directly; scripts/health/health.sh verifies unauthenticated calls get 401.
+    env_file: ["${OH_RUNTIME_DIR:?}/canvas.env"]
+    environment:
+      AGENT_CANVAS_DISABLE_TELEMETRY: "1"
+      AGENT_CANVAS_ALLOW_LAN_SESSION_KEY: "false"
+      LOG_JSON: "true"
+    ports:
+      - "127.0.0.1:${OH_LOCAL_PORT:?}:8000"
+    volumes:
+      - data:/home/openhands/.openhands
+      - projects:/projects
+    networks: [agent]
+    cpus: ${OPENHANDS_CPUS:-2}
+    mem_limit: ${OPENHANDS_MEMORY:-4g}
+    pids_limit: ${OPENHANDS_PIDS_LIMIT:-2048}
+    shm_size: 512m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8000/alive"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "5"}
+
+networks:
+  agent:
+    name: ${ONES_PREFIX:-1s}-openhands-${OH_USER:?}
+    ipam:
+      config:
+        - subnet: ${OH_SUBNET:?}
+
+volumes:
+  data:
+    name: ${ONES_PREFIX:-1s}-openhands-${OH_USER:?}-data
+  projects:
+    name: ${ONES_PREFIX:-1s}-openhands-${OH_USER:?}-projects

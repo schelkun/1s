@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Stub `docker` for unit tests: pretends the 1s Nginx container is running.
+# Set STUB_FAIL_NGINX_T to a file path; while it exists `nginx -t` fails.
+# Worker PIDs change on every reload so nginx_reload sees new workers.
+printf '%s\n' "$*" >>"${STUB_DOCKER_LOG:-/dev/null}"
+state="${STUB_STATE:-${TMPDIR:-/tmp}/1s-docker-stub.$PPID}"
+case "$1" in
+  inspect) echo true ;;
+  exec)
+    if [[ "$*" == *"nginx -t"* && -n "${STUB_FAIL_NGINX_T:-}" && -f "${STUB_FAIL_NGINX_T}" ]]; then
+      echo "nginx: [emerg] stub validation failure" >&2; exit 1
+    fi
+    if [[ "$*" == *"nginx -s reload"* ]]; then echo $(( $(cat "${state}" 2>/dev/null || echo 0) + 1 )) >"${state}"; fi
+    if [[ "$*" == *" ps "* ]]; then echo "$(( 100 + $(cat "${state}" 2>/dev/null || echo 0) )) nginx: worker process"; fi ;;
+esac
+exit 0

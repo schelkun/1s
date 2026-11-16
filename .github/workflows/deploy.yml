@@ -1,0 +1,99 @@
+# Production operations over the restricted deployment SSH connection.
+#
+# Needs exactly three environment secrets (Settings -> Environments ->
+# production): DEPLOY_HOST, DEPLOY_SSH_KEY, DEPLOY_KNOWN_HOSTS.
+# scripts/macos/generate-deploy-key.sh prints/copies them for you.
+# Server settings and application secrets are stored on the server, not here.
+#
+# Security model:
+#   * Manual trigger only (workflow_dispatch) on main: pull requests and forks
+#     can never start it.
+#   * Secrets are environment secrets: only this job can read them. Add a
+#     main-only branch policy and, optionally, required reviewers.
+#   * The SSH host key is pinned; the deploy key can only run the server
+#     gateway, and only while you have enabled access.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Component
+        type: choice
+        options: [all, shared, gitea, openhands]
+        default: all
+      action:
+        description: Operation
+        type: choice
+        options: [deploy, health, backup, rollback, status]
+        default: deploy
+      restore_data:
+        description: "rollback only: also restore the pre-deployment backup (data loss since then!)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 1s-production
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    name: ${{ inputs.action }} ${{ inputs.target }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure pinned SSH connection
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          for v in DEPLOY_HOST DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            [ -n "${!v}" ] || { echo "::error::Missing secret ${v} (see docs/macos-setup.md)"; exit 1; }
+          done
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > ~/.ssh/1s_deploy
+          printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" > ~/.ssh/1s_known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host 1s-server
+            HostName ${DEPLOY_HOST}
+            Port ${DEPLOY_SSH_PORT}
+            User deploy
+            IdentityFile ~/.ssh/1s_deploy
+            IdentitiesOnly yes
+            UserKnownHostsFile ~/.ssh/1s_known_hosts
+            HostKeyAlias 1s-server
+            StrictHostKeyChecking yes
+            BatchMode yes
+            ConnectTimeout 20
+            ServerAliveInterval 30
+            ServerAliveCountMax 6
+          EOF
+
+      - name: Run
+        env:
+          TARGET: ${{ inputs.target }}
+          ACTION: ${{ inputs.action }}
+          RESTORE_DATA: ${{ inputs.restore_data }}
+        run: |
+          set -euo pipefail
+          flag=""
+          if [ "${ACTION}" = rollback ] && [ "${RESTORE_DATA}" = true ]; then flag=--restore-data; fi
+          scripts/deploy/ci-run.sh "${TARGET}" "${ACTION}" ${flag}
+
+      - name: Remove SSH credentials
+        if: always()
+        run: rm -f ~/.ssh/1s_deploy ~/.ssh/1s_known_hosts ~/.ssh/config

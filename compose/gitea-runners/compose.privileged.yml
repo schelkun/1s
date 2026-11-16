@@ -1,0 +1,11 @@
+# Fallback isolation: rootful Docker-in-Docker in a PRIVILEGED container.
+# Each runner still has its own daemon (never the host socket), but a
+# privileged container is a weak boundary. Use only when rootless mode cannot
+# work on your kernel. Requires a *-dind (not -rootless) runner image.
+services:
+  runner:
+    privileged: true
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - docker:/var/lib/docker

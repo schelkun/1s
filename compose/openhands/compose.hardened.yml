@@ -1,0 +1,6 @@
+# Default: the agent runs as the unprivileged "openhands" user and cannot
+# escalate (the image ships passwordless sudo; no-new-privileges blocks it).
+services:
+  canvas:
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]

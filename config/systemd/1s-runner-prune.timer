@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily cleanup of Gitea runner private Docker daemons
+
+[Timer]
+OnCalendar=*-*-* 05:00:00
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

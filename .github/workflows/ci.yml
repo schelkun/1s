@@ -1,0 +1,26 @@
+# Static checks and tests. Runs for pushes and pull requests (including forks)
+# with read-only permissions and no secrets.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: ShellCheck
+        run: tests/shellcheck.sh
+      - name: Unit tests
+        run: tests/unit.sh
+      - name: Compose and Nginx validation
+        run: tests/validate-configs.sh

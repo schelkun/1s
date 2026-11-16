@@ -1,0 +1,78 @@
+# Gitea + PostgreSQL.
+#
+# Interpolation variables come from ${ONES_ETC}/runtime/gitea/compose.env and the
+# container environments from the 0600 env files next to it; both are rendered
+# by scripts/deploy/deploy-gitea.sh. Nothing here is server specific.
+name: ${ONES_PREFIX:-1s}-gitea
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "20m", max-file: "5"}
+
+services:
+  db:
+    image: ${GITEA_POSTGRES_IMAGE:?}
+    container_name: ${ONES_PREFIX:-1s}-gitea-db
+    restart: unless-stopped
+    env_file: ["${ONES_ETC:-/etc/1s}/runtime/gitea/db.env"]
+    volumes:
+      - db:/var/lib/postgresql
+    networks: [backend]
+    shm_size: 256m
+    mem_limit: ${GITEA_DB_MEMORY:-1g}
+    pids_limit: 1024
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -U gitea -d gitea"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    logging: *logging
+
+  gitea:
+    image: ${GITEA_IMAGE:?}
+    container_name: ${ONES_PREFIX:-1s}-gitea
+    restart: unless-stopped
+    depends_on:
+      db: {condition: service_healthy}
+    env_file: ["${ONES_ETC:-/etc/1s}/runtime/gitea/gitea.env"]
+    volumes:
+      - data:/var/lib/gitea
+      - config:/etc/gitea
+    ports:
+      # HTTP only on loopback; Nginx terminates TLS.
+      - "127.0.0.1:${GITEA_LOCAL_PORT:?}:3000"
+      # Git-over-SSH (Gitea built-in server) on an explicit address.
+      - "${GITEA_SSH_BIND_IP:?}:${GITEA_SSH_PORT:?}:2222"
+    networks: [frontend, backend]
+    cpus: ${GITEA_CPUS:-2}
+    mem_limit: ${GITEA_MEMORY:-2g}
+    pids_limit: 4096
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3000/api/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    logging: *logging
+
+networks:
+  frontend:
+    name: ${ONES_PREFIX:-1s}-gitea-frontend
+    ipam:
+      config:
+        - subnet: ${GITEA_NETWORK_SUBNET:?}
+  backend:
+    name: ${ONES_PREFIX:-1s}-gitea-backend
+    internal: true
+
+volumes:
+  db:
+    name: ${ONES_PREFIX:-1s}-gitea-db
+  data:
+    name: ${ONES_PREFIX:-1s}-gitea-data
+  config:
+    name: ${ONES_PREFIX:-1s}-gitea-config

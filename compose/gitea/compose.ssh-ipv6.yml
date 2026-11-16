@@ -1,0 +1,6 @@
+# Optional overlay: publish Git-over-SSH on an IPv6 address as well.
+# Added automatically when ENABLE_IPV6=true and GITEA_SSH_BIND_IP6 is set.
+services:
+  gitea:
+    ports:
+      - "[${GITEA_SSH_BIND_IP6:?}]:${GITEA_SSH_PORT:?}:2222"
